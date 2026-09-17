@@ -59,6 +59,7 @@ function enqueueRoute(value, current = new URL(sourceOrigin)) {
 }
 
 function enqueueAsset(value, current = new URL(sourceOrigin)) {
+  if (!value || /^(?:#|%23|data:|blob:)/i.test(value)) return;
   let url;
   try {
     url = new URL(value, current);
@@ -67,6 +68,7 @@ function enqueueAsset(value, current = new URL(sourceOrigin)) {
   }
   if (url.origin !== sourceOrigin) return;
   if (!url.pathname.startsWith("/_astro/") && !url.pathname.startsWith("/logos/")) return;
+  if (!/\.(?:css|gif|ico|jpe?g|js|json|mjs|png|svg|webp|woff2?)(?:$)/i.test(url.pathname)) return;
   if (assetKeys.has(url.pathname)) return;
   assetKeys.add(url.pathname);
   assetQueue.push(url);
