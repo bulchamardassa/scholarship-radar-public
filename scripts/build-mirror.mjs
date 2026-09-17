@@ -157,7 +157,10 @@ while (assetIndex < assetQueue.length) {
   let bytes = Buffer.from(await response.arrayBuffer());
   if (/text|javascript|json|svg/.test(contentType)) {
     let text = bytes.toString("utf8");
-    for (const match of text.matchAll(/(?:url\(|from\s+|import\s*)["']?([^"')\s]+)["']?/g)) {
+    for (const match of text.matchAll(/url\(\s*["']?([^"')\s]+)["']?\s*\)/g)) {
+      enqueueAsset(match[1], url);
+    }
+    for (const match of text.matchAll(/\b(?:from|import)\s*(?:\(\s*)?["']([^"']+)["']/g)) {
       enqueueAsset(match[1], url);
     }
     text = text.replaceAll('"/_astro/', `"${basePath}/_astro/`)
