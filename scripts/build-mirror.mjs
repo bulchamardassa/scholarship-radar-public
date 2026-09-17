@@ -167,10 +167,8 @@ while (assetIndex < assetQueue.length) {
     for (const match of text.matchAll(/\b(?:from|import)\s*(?:\(\s*)?["']([^"']+)["']/g)) {
       enqueueAsset(match[1], url);
     }
-    text = text.replaceAll('"/_astro/', `"${basePath}/_astro/`)
-      .replaceAll("'/_astro/", `'${basePath}/_astro/`)
-      .replaceAll('"/logos/', `"${basePath}/logos/`)
-      .replaceAll("'/logos/", `'${basePath}/logos/`)
+    text = text.replaceAll("/_astro/", `${basePath}/_astro/`)
+      .replaceAll("/logos/", `${basePath}/logos/`)
       .replaceAll('"/search', `"${basePath}/search`)
       .replaceAll('"/scholarships/', `"${basePath}/scholarships/`);
     bytes = Buffer.from(text);
