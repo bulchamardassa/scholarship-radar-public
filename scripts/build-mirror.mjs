@@ -92,17 +92,19 @@ function rewriteUrl(value, current) {
 }
 
 function rewriteHtml(html, current) {
-  for (const match of html.matchAll(/\b(?:href|src)=["']([^"']+)["']/g)) {
+  for (const match of html.matchAll(
+    /\b(?:href|src|component-url|renderer-url|before-hydration-url)=["']([^"']+)["']/g,
+  )) {
     const value = match[1];
     enqueueRoute(value, current);
     enqueueAsset(value, current);
   }
-  let rewritten = html.replace(/\b(href|src|action)=(['"])([^'"]+)\2/g, (full, attr, quote, value) =>
-    `${attr}=${quote}${rewriteUrl(value, current)}${quote}`,
+  let rewritten = html.replace(
+    /\b(href|src|action|component-url|renderer-url|before-hydration-url)=(['"])([^'"]+)\2/g,
+    (full, attr, quote, value) => `${attr}=${quote}${rewriteUrl(value, current)}${quote}`,
   );
   for (const alias of sourceAliases) rewritten = rewritten.replaceAll(alias, `${targetOrigin}${basePath}`);
-  const notice = `<div style="background:#111827;color:#fff;padding:8px 16px;text-align:center;font:600 13px/1.4 system-ui">Public access mirror. Scholarship data is synchronized from the canonical Scholarship Radar service.</div>`;
-  return rewritten.replace(/<body([^>]*)>/i, `<body$1>${notice}`);
+  return rewritten;
 }
 
 async function fetchOk(url) {
