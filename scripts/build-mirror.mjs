@@ -105,9 +105,15 @@ function rewriteHtml(html, current) {
 }
 
 async function fetchOk(url) {
-  const response = await fetch(url, { headers: { "user-agent": "ScholarshipRadarPublicMirror/1.0" } });
-  if (!response.ok) throw new Error(`${url} returned HTTP ${response.status}`);
-  return response;
+  let lastStatus = 0;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const response = await fetch(url, { headers: { "user-agent": "ScholarshipRadarPublicMirror/1.0" } });
+    if (response.ok) return response;
+    lastStatus = response.status;
+    if (response.status !== 429 && response.status < 500) break;
+    if (attempt < 5) await new Promise((resolve) => setTimeout(resolve, attempt * 2_000));
+  }
+  throw new Error(`${url} returned HTTP ${lastStatus} after bounded retries`);
 }
 
 await rm(outputRoot, { recursive: true, force: true });
