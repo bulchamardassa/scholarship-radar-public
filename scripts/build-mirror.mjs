@@ -12,20 +12,23 @@ const routeKeys = new Set();
 const assetQueue = [];
 const assetKeys = new Set();
 const fetchedAssets = new Set();
+const routeFailures = [];
+const criticalRoutes = new Set([
+  "/",
+  "/latest",
+  "/scholarships/top-up-degrees-2-000-bursary-available-at-university-of-west-london",
+]);
 
 function excluded(pathname) {
   return excludedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
 function routeKey(url) {
-  const page = url.searchParams.get("page");
-  return page && /^\d+$/.test(page) ? `${url.pathname}?page=${page}` : url.pathname;
+  return url.pathname;
 }
 
 function outputPath(url) {
-  const page = url.searchParams.get("page");
   const pathname = url.pathname.replace(/^\/+|\/+$/g, "");
-  if (page && /^\d+$/.test(page)) return join(outputRoot, pathname, "page", page, "index.html");
   if (!pathname) return join(outputRoot, "index.html");
   if (pathname.endsWith(".xml") || pathname.endsWith(".txt") || pathname.includes(".")) {
     return join(outputRoot, pathname);
@@ -34,9 +37,7 @@ function outputPath(url) {
 }
 
 function publicPath(url) {
-  const page = url.searchParams.get("page");
   const pathname = url.pathname === "/" ? "/" : `${url.pathname.replace(/\/$/, "")}/`;
-  if (page && /^\d+$/.test(page)) return `${basePath}${pathname}page/${page}/`;
   return `${basePath}${pathname}`;
 }
 
@@ -49,8 +50,8 @@ function enqueueRoute(value, current = new URL(sourceOrigin)) {
   }
   if (![sourceOrigin, ...sourceAliases].some((origin) => url.origin === origin)) return;
   if (excluded(url.pathname)) return;
-  if ([...url.searchParams.keys()].some((key) => key !== "page")) return;
-  url = new URL(`${sourceOrigin}${url.pathname}${url.search}`);
+  if ([...url.searchParams.keys()].length) return;
+  url = new URL(`${sourceOrigin}${url.pathname}`);
   const key = routeKey(url);
   if (routeKeys.has(key)) return;
   routeKeys.add(key);
@@ -84,10 +85,8 @@ function rewriteUrl(value, current) {
   if (url.pathname.startsWith("/_astro/") || url.pathname.startsWith("/logos/")) {
     return `${basePath}${url.pathname}${url.search}${url.hash}`;
   }
-  if ([...url.searchParams.keys()].every((key) => key === "page")) {
-    return `${publicPath(url)}${url.hash}`;
-  }
-  return `${basePath}${url.pathname}${url.search}${url.hash}`;
+  if ([...url.searchParams.keys()].length) return `${basePath}${url.pathname}${url.hash}`;
+  return `${publicPath(url)}${url.hash}`;
 }
 
 function rewriteHtml(html, current) {
@@ -128,7 +127,15 @@ enqueueRoute("/latest");
 let routeIndex = 0;
 while (routeIndex < routeQueue.length) {
   const url = routeQueue[routeIndex++];
-  const response = await fetchOk(url);
+  let response;
+  try {
+    response = await fetchOk(url);
+  } catch (error) {
+    if (criticalRoutes.has(url.pathname)) throw error;
+    routeFailures.push({ path: url.pathname, error: error instanceof Error ? error.message : String(error) });
+    console.warn(`Skipping noncritical route ${url.pathname}: ${routeFailures.at(-1).error}`);
+    continue;
+  }
   const contentType = response.headers.get("content-type") || "";
   let body = await response.text();
   if (contentType.includes("text/html")) body = rewriteHtml(body, url);
@@ -168,7 +175,9 @@ while (assetIndex < assetQueue.length) {
 
 const api = await (await fetchOk(`${sourceOrigin}/api/scholarships.json`)).json();
 if (!Array.isArray(api) || api.length < 100) throw new Error("Public catalog API did not return the expected collection");
+if (routeKeys.size - routeFailures.length < 300) throw new Error(`Mirror coverage too low: ${routeKeys.size - routeFailures.length} routes`);
 await writeFile(join(outputRoot, "catalog-count.json"), `${JSON.stringify({ count: api.length, mirroredAt: new Date().toISOString() })}\n`);
+await writeFile(join(outputRoot, "mirror-status.json"), `${JSON.stringify({ routes: routeKeys.size, failures: routeFailures }, null, 2)}\n`);
 await writeFile(join(outputRoot, ".nojekyll"), "");
 await writeFile(join(outputRoot, "404.html"), await (await import("node:fs/promises")).readFile(join(outputRoot, "index.html")));
 
